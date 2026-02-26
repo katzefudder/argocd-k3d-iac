@@ -18,7 +18,7 @@ resource "null_resource" "k3d_cluster" {
         echo "k3d cluster '${var.cluster_name}' already exists"
       else
         echo "Creating k3d cluster '${var.cluster_name}'..."
-        k3d cluster create ${var.cluster_name}           --servers ${var.servers}           --agents ${var.agents}           --k3s-arg "--disable=traefik@server:0"
+        k3d cluster create -p "80:80@loadbalancer" -p "443:443@loadbalancer" ${var.cluster_name} --k3s-arg "--disable=traefik@server:0" --servers ${var.servers} --agents ${var.agents}
       fi
 
       echo "Writing kubeconfig to ${local.kubeconfig_path}..."
@@ -26,6 +26,11 @@ resource "null_resource" "k3d_cluster" {
 
       echo "Switching kubectl context..."
       kubectl config use-context k3d-${var.cluster_name} >/dev/null
+
+      echo "Installing nginx Ingress Controller via Helm..."
+      helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx --namespace ingress-nginx --create-namespace
+
+      sleep 10 # Wait for the Ingress Controller to be ready (in a real setup, you'd want to check the deployment status instead of sleeping)
     EOT
     interpreter = ["/bin/bash", "-c"]
   }
@@ -60,22 +65,28 @@ resource "helm_release" "argocd" {
   values = [
     yamlencode({
       server = {
-        replicas = 1
-        service = { type = "ClusterIP" }
+        insecure = true
+        ingress = {
+          enabled = false
+          /*
+          ingressClassName = "nginx"
+          hostname = "argocd.localhost"
+          path = "/"
+          pathType = "Prefix"
+          annotations = {
+            "nginx.ingress.kubernetes.io/force-ssl-redirect" = "false"
+            "nginx.ingress.kubernetes.io/backend-protocol" = "HTTP"
+            "nginx.ingress.kubernetes.io/ssl-redirect" = "false"
+          }
+          */
+        }
       }
-      repoServer = { replicas = 1 }
-      applicationSet = { replicas = 1 }
-      controller = { replicas = 1 }
+      configs = {
+        server = {
+          insecure = true
+          url = "http://argocd.localhost"
+        }
+      }
     })
   ]
-}
-
-# --- 4) Bootstrap GitOps (App-of-Apps) ---
-# This creates an Argo CD Application that points back to this repo's apps/root folder.
-resource "kubernetes_manifest" "root_app" {
-  depends_on = [helm_release.argocd]
-
-  manifest = yamldecode(templatefile("${path.module}/templates/root-app.yaml.tftpl", {
-    git_repo_url = var.git_repo_url
-  }))
 }

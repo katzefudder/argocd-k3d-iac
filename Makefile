@@ -2,13 +2,17 @@ SHELL := /bin/bash
 
 # Example:
 #   make up GIT_REPO_URL=https://github.com/<you>/argocd-k3d-iac.git
-GIT_REPO_URL ?= https://github.com/REPLACE_ME/argocd-k3d-iac.git
+GIT_REPO_URL ?= https://github.com/katzefudder/argocd-k3d-iac.git
 
-.PHONY: up destroy argocd-password argocd-port-forward kubecontext
+.PHONY: up destroy argocd-password argocd-port-forward kubecontext deploy-apps
 
 up:
 	cd infra/terraform && terraform init
 	cd infra/terraform && terraform apply -auto-approve -var="git_repo_url=$(GIT_REPO_URL)"
+	@echo "Terraform infrastructure is ready. Run 'make deploy-apps' to deploy ArgoCD applications."
+
+deploy-apps:
+	@bash scripts/deploy-apps.sh $(GIT_REPO_URL)
 
 destroy:
 	cd infra/terraform && terraform destroy -auto-approve || true
