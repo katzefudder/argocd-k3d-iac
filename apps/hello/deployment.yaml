@@ -37,7 +37,7 @@ data:
     <html>
       <head><title>Hello from Argo CD</title></head>
       <body style="font-family: sans-serif;">
-        <h1>Hello 👋</h1>
+        <h1>Hello Du</h1>
         <p>This page is deployed by <b>Argo CD</b> to a local <b>k3d</b> cluster.</p>
         <p>Try editing <code>apps/hello/deployment.yaml</code> and watch Argo sync.</p>
       </body>
